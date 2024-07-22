@@ -1,23 +1,27 @@
-import Todo from '../models/Todo.js';
-import { validateTodoData } from '../utils/validation.js';
+import Todo from "../models/Todo.js";
+import { convertToISO8601 } from "../utils/helpers.js";
+import { successResponse, errorResponse, handleError } from "../utils/standardResponse.js";
+import { validateTodoData } from "../utils/validation.js";
 
 export const addTodo = async (req, res) => {
   const todoData = req.body;
 
   try {
     await validateTodoData(todoData);
-
-    // Validate and format dateTime
     if (todoData.dateTime) {
-      const date = new Date(todoData.dateTime);
-      if (isNaN(date.getTime())) {
-        return res.status(400).json({ message: 'Invalid dateTime format. Expected ISO-8601 DateTime.' });
+      const isoDateTime = convertToISO8601(todoData.dateTime);
+      if (!isoDateTime) {
+        return errorResponse(
+          res,
+          "Invalid dateTime format. Expected ISO-8601 DateTime.",
+          400
+        );
       }
-      todoData.dateTime = date.toISOString(); // Convert to ISO-8601 format
+      todoData.dateTime = isoDateTime;
     }
 
     const newTodo = await Todo.create(todoData);
-    res.status(201).json(newTodo);
+    return successResponse(res, "Todo created successfully", newTodo, 201);
   } catch (error) {
     handleError(res, error);
   }
@@ -25,14 +29,54 @@ export const addTodo = async (req, res) => {
 
 export const updateTodo = async (req, res) => {
   const { id } = req.params;
+  // Convert id to an integer
+  const todoId = parseInt(id, 10);
+  if (isNaN(todoId)) {
+    return errorResponse(res, "Invalid ID format. Expected an integer.", 400);
+  }
   const updatedData = req.body;
 
+  // Check and format dateTime if provided
+  if (updatedData.dateTime) {
+    const isoDateTime = convertToISO8601(updatedData.dateTime);
+    if (!isoDateTime) {
+      return errorResponse(
+        res,
+        "Invalid dateTime format. Expected ISO-8601 DateTime.",
+        400
+      );
+    }
+    updatedData.dateTime = isoDateTime;
+  }
+
   try {
-    const updatedTodo = await Todo.update(id, updatedData);
+    const updatedTodo = await Todo.update(todoId, updatedData);
     if (!updatedTodo) {
-      res.status(404).json({ message: 'Todo not found' });
+      return errorResponse(res, "Todo not found", 404);
     } else {
-      res.json({ message: 'Todo updated successfully' });
+      return successResponse(res, "Todo updated successfully", updatedTodo);
+    }
+  } catch (error) {
+    handleError(res, error);
+  }
+};
+
+
+export const updateDoneStatus = async (req, res) => {
+  const { id } = req.params;
+  const { done } = req.body;
+
+  const todoId = parseInt(id, 10);
+  if (isNaN(todoId)) {
+    return errorResponse(res, "Invalid ID format. Expected an integer.", 400);
+  }
+
+  try {
+    const updatedTodo = await Todo.update(todoId, { done });
+    if (!updatedTodo) {
+      return errorResponse(res, "Todo not found", 404);
+    } else {
+      return successResponse(res, "Todo done status updated successfully", updatedTodo);
     }
   } catch (error) {
     handleError(res, error);
@@ -41,13 +85,17 @@ export const updateTodo = async (req, res) => {
 
 export const deleteTodo = async (req, res) => {
   const { id } = req.params;
+  const todoId = parseInt(id, 10);
+  if (isNaN(todoId)) {
+    return errorResponse(res, "Invalid ID format. Expected an integer.", 400);
+  }
 
   try {
-    const deletedTodo = await Todo.delete(id);
+    const deletedTodo = await Todo.delete(todoId);
     if (!deletedTodo) {
-      res.status(404).json({ message: 'Todo not found' });
+      return errorResponse(res, "Todo not found", 404);
     } else {
-      res.json({ message: 'Todo deleted successfully' });
+      return successResponse(res, "Todo deleted successfully");
     }
   } catch (error) {
     handleError(res, error);
@@ -59,13 +107,9 @@ export const listTodos = async (req, res) => {
 
   try {
     const todos = await Todo.findAll(filter);
-    res.json(todos);
+    return successResponse(res, "Todo fetched successfully", todos, 200);
   } catch (error) {
     handleError(res, error);
   }
 };
 
-const handleError = (res, error) => {
-  console.error('Error:', error);
-  res.status(500).json({ message: 'Internal server error' });
-};

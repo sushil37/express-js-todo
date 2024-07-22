@@ -1,158 +1,240 @@
+let currentEditingTodo = null;
+
 document.addEventListener("DOMContentLoaded", () => {
-  const todoForm = document.getElementById("todoForm");
-  const submitButton = document.createElement("button");
-  todoForm.addEventListener("submit", async (event) => {
+    const todoForm = document.getElementById("todoForm");
+    const filterSelect = document.getElementById("filterSelect");
+
+    initializeForm(todoForm);
+    loadTodos();
+
+    if (filterSelect) {
+        filterSelect.addEventListener("change", loadTodos);
+    }
+
+    todoForm.addEventListener("submit", handleSubmit);
+});
+
+function initializeForm(todoForm) {
+    const submitButton = createButton("Add Todo", "btn btn-primary", "submit");
+    todoForm.appendChild(submitButton);
+
+    const resetButton = createButton("Reset Form", "btn btn-secondary", "button");
+    resetButton.addEventListener("click", resetForm);
+    todoForm.appendChild(resetButton);
+}
+
+function createButton(text, className, type) {
+    const button = document.createElement("button");
+    button.textContent = text;
+    button.classList.add(...className.split(" "));
+    button.type = type;
+    return button;
+}
+
+function resetForm() {
+    const todoForm = document.getElementById("todoForm");
+    todoForm.reset();
+    const submitButton = todoForm.querySelector("button[type='submit']");
+    submitButton.textContent = "Add Todo";
+    currentEditingTodo = null;
+}
+
+async function loadTodos() {
+    showLoadingIndicator();
+    const filter = document.getElementById("filterSelect").value;
+    try {
+        const response = await fetch(`/api/todos?filter=${filter}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const todos = await response.json();
+        addTodoToList(todos);
+    } catch (error) {
+        showError("Error loading todos: " + error.message);
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+function addTodoToList(todos) {
+    const todoList = document.getElementById("todoList");
+    todoList.innerHTML = "";
+
+    const todoData = todos.data || [];
+    if (todoData.length === 0) {
+        const noTodosMessage = document.createElement("li");
+        noTodosMessage.textContent = "No todos found.";
+        todoList.appendChild(noTodosMessage);
+    } else {
+        todoData.forEach(todo => {
+            const todoItem = createTodoItem(todo);
+            todoList.appendChild(todoItem);
+        });
+    }
+}
+
+function createTodoItem(todo) {
+    const todoItem = document.createElement("li");
+    todoItem.textContent = `${todo.name} - ${todo.description} - ${new Date(todo.dateTime).toLocaleString()}`;
+    todoItem.dataset.id = todo.id;
+
+    if (todo.done) {
+        todoItem.classList.add("highlight");
+    }
+
+    const buttonContainer = createButtonContainer(todo);
+    todoItem.appendChild(buttonContainer);
+
+    return todoItem;
+}
+
+function createButtonContainer(todo) {
+    const buttonContainer = document.createElement("div");
+    buttonContainer.classList.add("button-container");
+
+    const editButton = createButton("Edit", "btn edit-btn", "button");
+    editButton.addEventListener("click", () => editTodo(todo));
+    
+    const deleteButton = createButton("Delete", "btn delete-btn", "button");
+    deleteButton.addEventListener("click", () => deleteTodo(todo.id));
+
+    const toggleDoneButton = createButton(todo.done ? "Mark as Pending" : "Mark as Done", "btn toggle-done-btn", "button");
+    toggleDoneButton.addEventListener("click", () => updateDoneStatus(todo));
+
+    buttonContainer.append(editButton, deleteButton, toggleDoneButton);
+    return buttonContainer;
+}
+
+async function updateDoneStatus(todo) {
+    try {
+        const response = await fetch(`/api/todos/${todo.id}/done`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ done: !todo.done }),
+        });
+
+        if (!response.ok) throw new Error("Failed to update done status");
+
+        const updatedTodo = await response.json();
+        updateTodoItemDisplay(updatedTodo);
+    } catch (error) {
+        showError("Error updating done status: " + error.message);
+    }
+}
+
+function updateTodoItemDisplay(updatedTodo) {
+    const todoItem = document.querySelector(`li[data-id='${updatedTodo.data.id}']`);
+    todoItem.textContent = `${updatedTodo.data.name} - ${updatedTodo.data.description} - ${new Date(updatedTodo.data.dateTime).toLocaleString()}`;
+    
+    if (updatedTodo.data.done) {
+        todoItem.classList.add("highlight");
+    } else {
+        todoItem.classList.remove("highlight");
+    }
+
+    const toggleDoneButton = todoItem.querySelector(".toggle-done-btn");
+    if (toggleDoneButton) {
+        toggleDoneButton.textContent = updatedTodo.data.done ? "Mark as Pending" : "Mark as Done";
+    }
+}
+
+async function handleSubmit(event) {
     event.preventDefault();
 
     const name = document.getElementById("name").value;
     const description = document.getElementById("description").value;
     const dateTime = document.getElementById("dateTime").value;
-    const newTodo = {
-      name,
-      description,
-      dateTime,
-    };
 
-    try {
-      const response = await fetch("/api/todos", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newTodo),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create todo");
-      }
-
-      const createdTodo = await response.json();
-      addTodoToList([createdTodo]); // Pass the created todo as an array
-      todoForm.reset(); // Reset the form fields
-      submitButton.textContent = "Add Todo"; // Reset button text
-    } catch (error) {
-      console.error("Error creating todo:", error);
+    // Basic validation
+    if (!name || !description || !dateTime) {
+        showError("All fields are required.");
+        return;
     }
-  });
 
-  loadTodos();
-});
+    const todoData = { name, description, dateTime };
 
-async function loadTodos() {
-  try {
-    const response = await fetch("/api/todos");
-    const todos = await response.json();
-    addTodoToList(todos);
-  } catch (error) {
-    console.error("Error loading todos:", error);
-  }
+    if (currentEditingTodo) {
+        await updateTodo(currentEditingTodo.id, todoData);
+    } else {
+        await createTodo(todoData);
+    }
 }
 
-// Function to add todos to the list
-function addTodoToList(todos) {
-  const todoList = document.getElementById("todoList");
-  todoList.innerHTML = ""; // Clear the existing list
+async function createTodo(todoData) {
+    try {
+        const response = await fetch("/api/todos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(todoData),
+        });
 
-  if (todos.length === 0) {
-    const noTodosMessage = document.createElement("li");
-    noTodosMessage.textContent = "No todos found.";
-    todoList.appendChild(noTodosMessage);
-  } else {
-    todos.forEach((todo) => {
-      const todoItem = document.createElement("li");
-      todoItem.textContent = `${todo.name} - ${todo.description} - ${new Date(
-        todo.dateTime
-      ).toLocaleString()}`;
-      todoItem.dataset.id = todo.id;
+        if (!response.ok) throw new Error("Failed to create todo");
 
-      // Create a container for buttons
-      const buttonContainer = document.createElement("div");
-      buttonContainer.classList.add("button-container");
-
-      // Create Edit Button
-      const editButton = document.createElement("button");
-      editButton.textContent = "Edit";
-      editButton.classList.add("btn", "edit-btn");
-      editButton.addEventListener("click", () => editTodo(todo));
-
-      // Create Delete Button
-      const deleteButton = document.createElement("button");
-      deleteButton.textContent = "Delete";
-      deleteButton.classList.add("btn", "delete-btn");
-      deleteButton.addEventListener("click", () => deleteTodo(todo.id));
-
-      // Append buttons to button container
-      buttonContainer.appendChild(editButton);
-      buttonContainer.appendChild(deleteButton);
-
-      // Append button container to todo item
-      todoItem.appendChild(buttonContainer);
-      todoList.appendChild(todoItem);
-    });
-  }
+        const createdTodo = await response.json();
+        addTodoToList([createdTodo]);
+        resetForm();
+        showSuccess("Todo added successfully!");
+    } catch (error) {
+        showError("Error creating todo: " + error.message);
+    }
 }
 
-// Function to edit a todo
+async function updateTodo(todoId, todoData) {
+    try {
+        const response = await fetch(`/api/todos/${todoId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(todoData),
+        });
+
+        if (!response.ok) throw new Error("Failed to update todo");
+
+        const updatedTodo = await response.json();
+        updateTodoItemDisplay(updatedTodo);
+        resetForm();
+        showSuccess("Todo updated successfully!");
+    } catch (error) {
+        showError("Error updating todo: " + error.message);
+    }
+}
+
 function editTodo(todo) {
-  // Populate the form with the current todo data
-  document.getElementById("name").value = todo.name;
-  document.getElementById("description").value = todo.description;
+    document.getElementById("name").value = todo.name;
+    document.getElementById("description").value = todo.description;
 
-  // Format the date for the datetime-local input
-  const date = new Date(todo.dateTime);
-  const formattedDate = date.toISOString().slice(0, 16); // Format as YYYY-MM-DDTHH:MM
-  document.getElementById("dateTime").value = formattedDate;
+    const date = new Date(todo.dateTime);
+    document.getElementById("dateTime").value = date.toISOString().slice(0, 16); // Format as YYYY-MM-DDTHH:MM
 
-  // Change the form submission to update mode
-  const todoForm = document.getElementById("todoForm");
-  const submitButton = todoForm.querySelector("button[type='submit']");
-  submitButton.textContent = "Edit Todo"; // Change button text to "Edit Todo"
+    const todoForm = document.getElementById("todoForm");
+    const submitButton = todoForm.querySelector("button[type='submit']");
+    submitButton.textContent = "Edit Todo";
 
-  todoForm.onsubmit = async (event) => {
-    event.preventDefault(); // Prevent the default form submission
+    currentEditingTodo = todo;
+}
 
-    const updatedTodo = {
-      name: document.getElementById("name").value,
-      description: document.getElementById("description").value,
-      dateTime: document.getElementById("dateTime").value,
-    };
-
+async function deleteTodo(todoId) {
     try {
-      const response = await fetch(`/api/todos/${todo.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updatedTodo),
-      });
+        const response = await fetch(`/api/todos/${todoId}`, {
+            method: "DELETE",
+        });
 
-      if (!response.ok) {
-        throw new Error("Failed to update todo");
-      }
+        if (!response.ok) throw new Error("Failed to delete todo");
 
-      const updatedTodoData = await response.json();
-      loadTodos(); 
-      todoForm.reset(); 
-      submitButton.textContent = "Add Todo"; // Reset button text
+        loadTodos();
+        showSuccess("Todo deleted successfully!");
     } catch (error) {
-      console.error("Error updating todo:", error);
+        showError("Error deleting todo: " + error.message);
     }
-  };
+}
 
-  // Function to delete a todo
-  async function deleteTodo(todoId) {
-    try {
-      const response = await fetch(`/api/todos/${todoId}`, {
-        method: "DELETE",
-      });
+function showLoadingIndicator() {
+}
 
-      if (!response.ok) {
-        throw new Error("Failed to delete todo");
-      }
+function hideLoadingIndicator() {
+}
 
-      loadTodos(); // Reload the todos to reflect changes
-    } catch (error) {
-      console.error("Error deleting todo:", error);
-    }
-  }
+function showError(message) {
+    console.error(message);
+}
+
+function showSuccess(message) {
+    console.log(message);
 }

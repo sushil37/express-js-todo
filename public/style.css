@@ -199,3 +199,8 @@ h1 {
     background-color: #c82333;
 }
 
+.highlight {
+    background-color: #d4edda; /* Light green background */
+    text-decoration: line-through; /* Strikethrough text */
+  }
+
