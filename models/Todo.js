@@ -1,31 +1,34 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
 const Todo = {
-  create: async (todo, dbConnection) => {
-    const { name, description, dateTime } = todo;
-    const sql = 'INSERT INTO todos (name, description, dateTime) VALUES (?, ?, ?)';
-    const [result] = await dbConnection.execute(sql, [name, description, dateTime]);
-    return result;
+  create: async (todo) => {
+    return await prisma.todo.create({
+      data: {
+        name: todo.name,
+        description: todo.description,
+        dateTime: todo.dateTime,
+      },
+    });
   },
 
-  update: async (id, updates, dbConnection) => {
-    const { name, description, dateTime, done } = updates;
-    const sql = 'UPDATE todos SET name = ?, description = ?, dateTime = ?, done = ? WHERE id = ?';
-    const [result] = await dbConnection.execute(sql, [name, description, dateTime, done, id]);
-    return result;
+  update: async (id, updates) => {
+    return await prisma.todo.update({
+      where: { id },
+      data: updates,
+    });
   },
 
-  delete: async (id, dbConnection) => {
-    const sql = 'DELETE FROM todos WHERE id = ?';
-    const [result] = await dbConnection.execute(sql, [id]);
-    return result;
+  delete: async (id) => {
+    return await prisma.todo.delete({
+      where: { id },
+    });
   },
 
-  findAll: async (filter, dbConnection) => {
-    let sql = 'SELECT * FROM todos';
-    if (filter) {
-      sql += filter === 'done' ? ' WHERE done = 1' : ' WHERE done = 0';
-    }
-    const [results] = await dbConnection.execute(sql);
-    return results;
+  findAll: async (filter) => {
+    const where = filter === 'done' ? { done: true } : filter === 'pending' ? { done: false } : {};
+    return await prisma.todo.findMany({ where });
   },
 };
 
