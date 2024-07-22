@@ -4,21 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>To-Do App</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
     <script src="script.js" defer></script>
 </head>
 <body>
-    <h1>To-Do App</h1>
-    <form id="todoForm">
-        <input type="text" id="name" placeholder="Name" required>
-        <input type="text" id="description" placeholder="Short Description" required>
-        <input type="datetime-local" id="dateTime" required>
-        <button type="submit">Add Todo</button>
-    </form>
-    <select id="filter">
-        <option value="">All</option>
-        <option value="done">Done</option>
-        <option value="upcoming">Upcoming</option>
-    </select>
-    <ul id="todoList"></ul>
+    <div class="container">
+        <h1>To-Do App</h1>
+        <form id="todoForm">
+            <input type="text" id="name" placeholder="Name" required>
+            <input type="text" id="description" placeholder="Short Description" required>
+            <input type="datetime-local" id="dateTime" required>
+            <button type="submit" class="btn btn-primary">Add Todo</button>
+        </form>
+        <div class="filter-container">
+            <label for="filter">Filter:</label>
+            <select id="filter">
+                <option value="">All</option>
+                <option value="done">Done</option>
+                <option value="upcoming">Upcoming</option>
+            </select>
+        </div>
+        <ul id="todoList"></ul>
+    </div>
 </body>
 </html>
