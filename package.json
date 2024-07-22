@@ -1,7 +1,7 @@
 {
-  "name": "my-express-app",
+  "name": "simple-todo-app-express",
   "version": "1.0.0",
-  "description": "",
+  "description": "This is just simple todo app",
   "main": "app.js",
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
     "dev": "nodemon app.js"
   },
   "keywords": [],
-  "author": "",
+  "author": "sushil37",
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.20.2",
