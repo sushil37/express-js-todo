@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do App</title>
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <h1>To-Do App</h1>
+    <form id="todoForm">
+        <input type="text" id="name" placeholder="Name" required>
+        <input type="text" id="description" placeholder="Short Description" required>
+        <input type="datetime-local" id="dateTime" required>
+        <button type="submit">Add Todo</button>
+    </form>
+    <select id="filter">
+        <option value="">All</option>
+        <option value="done">Done</option>
+        <option value="upcoming">Upcoming</option>
+    </select>
+    <ul id="todoList"></ul>
+</body>
+</html>
